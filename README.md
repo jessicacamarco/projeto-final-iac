@@ -170,7 +170,7 @@ projeto-final-iac/
 ├── outputs.tf
 ├── provider.tf
 ├── README.md
-├── terraform.tfvars
+├── terraform.tfvars     #criado localmente ; não versionado 
 ├── variables.tf
 ├── versions.tf
 └── .gitignore
