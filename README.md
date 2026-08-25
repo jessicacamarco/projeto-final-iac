@@ -1478,68 +1478,21 @@ O procedimento deve ser repetido para todos os ambientes utilizados.
 
 # Evidências de destruição
 
-# Evidências de destruição
-
 Após a conclusão de todas as validações, os recursos provisionados pelo Terraform foram removidos utilizando:
 
 ```bash
 terraform destroy
 ```
 
-A remoção da infraestrutura principal foi validada diretamente na AWS.
-
-A instância EC2 `web-dev` foi identificada como `terminated` e o Security Group utilizado pela aplicação não estava mais presente.
-
-Também foi executado um novo:
-
-```bash
-terraform plan
-```
-
-após a destruição. O Terraform identificou que os recursos não estavam mais presentes na infraestrutura e apresentou:
-
-```text
-Plan: 8 to add, 0 to change, 0 to destroy.
-```
-
-Esse resultado demonstra que os recursos poderiam ser recriados a partir da configuração Terraform, caso um novo `terraform apply` fosse executado.
-
-## Destruição do Bootstrap
-
-Após a destruição da infraestrutura principal, o Bootstrap também foi removido.
-
-O bucket S3 utilizado para armazenamento remoto do Terraform State continha os states dos workspaces `dev` e `prod`:
-
-```text
-env:/dev/projeto-final-iac/terraform.tfstate
-env:/prod/projeto-final-iac/terraform.tfstate
-```
-
-Como o bucket não estava vazio, os objetos foram removidos antes da exclusão do bucket:
-
-```bash
-aws s3 rm s3://jessica-iac-projeto-final-iac --recursive
-```
-
-Após o esvaziamento do bucket, o recurso foi destruído pelo Terraform:
-
-```bash
-terraform destroy
-```
-
-Dessa forma, ao final do projeto, tanto a infraestrutura principal quanto o recurso utilizado pelo Bootstrap foram removidos da AWS.
+A remoção foi posteriormente validada diretamente na AWS, confirmando que os recursos provisionados pelo projeto não permaneciam em execução.
 
 As evidências dessa etapa estão registradas em:
 
-- `terraform_09_destroy.png` - execução do `terraform destroy` da infraestrutura principal;
-- `terraform_10_resources_destroyed.png` - validação da EC2 como `terminated` e ausência do Security Group;
-- `terraform_11_plan_after_destroy.png` - `terraform plan` após a destruição da infraestrutura;
-- `terraform_12_bootstrap_state.png` - recurso gerenciado pelo Terraform no Bootstrap;
-- `terraform_13_bootstrap_bucket.png` - identificação do bucket S3 utilizado pelo Terraform State;
-- `terraform_14_bootstrap_destroy.png` - execução do `terraform destroy` do Bootstrap;
-- `terraform_15_bootstrap_destroyed.png` - validação da remoção do bucket S3.
+- `terraform_09_destroy.png` - execução do `terraform destroy`;
+- `terraform_10_resources_destroyed.png` - validação dos recursos após a destruição.
 
-> **Resultado final:** todos os recursos AWS criados durante a execução do laboratório foram removidos ao término do projeto.
+> **Observação:** o bucket S3 utilizado pelo Bootstrap possui ciclo de vida independente da infraestrutura principal e deve ser tratado separadamente, conforme a configuração do projeto.
+
 ---
 
 # Fluxo completo de execução
@@ -1658,6 +1611,6 @@ O resultado final é uma infraestrutura reproduzível, automatizada e documentad
 
 # Repositório
 
-GitHub:
+O código-fonte, arquivos de configuração, módulos Terraform, playbooks Ansible e evidências do projeto estão disponíveis no GitHub:
 
-https://github.com/jessicacamarco/projeto-final-iac
+**GitHub:** https://github.com/jessicacamarco/projeto-final-iac
