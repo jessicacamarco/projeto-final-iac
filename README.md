@@ -1477,8 +1477,6 @@ O procedimento deve ser repetido para todos os ambientes utilizados.
 
 # Evidências de destruição
 
-# Evidências de destruição
-
 Após a conclusão de todas as validações, os recursos provisionados pelo Terraform foram removidos utilizando:
 
 ```bash
