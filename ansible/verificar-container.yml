@@ -1,0 +1,21 @@
+---
+- name: Verificar container da aplicação
+  hosts: all
+  become: true
+
+  tasks:
+
+    - name: Consultar container
+      community.docker.docker_container_info:
+        name: getting-started-app
+      register: container_info
+
+    - name: Exibir informações principais
+      ansible.builtin.debug:
+        msg:
+          - "Container: {{ container_info.container.Name }}"
+          - "Imagem: {{ container_info.container.Config.Image }}"
+          - "Status: {{ container_info.container.State.Status }}"
+          - "Running: {{ container_info.container.State.Running }}"
+          - "Porta publicada: {{ container_info.container.HostConfig.PortBindings['3000/tcp'][0].HostPort }}"
+          

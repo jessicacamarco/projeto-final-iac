@@ -1,0 +1,17 @@
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - us-east-1
+
+filters:
+  tag:Name:
+    - web-dev
+  instance-state-name:
+    - running
+
+hostnames:
+  - ip-address
+
+compose:
+  ansible_host: public_ip_address
+  

@@ -1,0 +1,17 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Variables
+terraform.tfvars
+
+# VSCode
+.vscode/
+
+# Linux
+*.swp
+
+# Mac
+.DS_Store

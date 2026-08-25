@@ -1,0 +1,35 @@
+---
+- name: Configurar servidor web
+  hosts: all
+  become: true
+
+  tasks:
+
+    - name: Instalar Docker Engine
+      ansible.builtin.dnf:
+        name: docker
+        state: present
+
+    - name: Garantir que o Docker esteja em execução
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Baixar imagem da aplicação
+      community.docker.docker_image:
+        name: docker/getting-started
+        tag: latest
+        source: pull
+        state: present
+
+    - name: Executar container da aplicação
+      community.docker.docker_container:
+        name: getting-started-app
+        image: docker/getting-started:latest
+        state: started
+        restart_policy: unless-stopped
+        published_ports:
+          - "3000:80"
+        env:
+          APP_SECRET: "{{ vault_app_secret }}"
