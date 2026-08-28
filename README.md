@@ -21,9 +21,11 @@ Após o provisionamento, o **Ansible** é utilizado para realizar a configuraç�
 
 - descoberta dinâmica da instância AWS;
 - conexão via SSH;
-- instalação do Docker Engine;
+- instalação do Docker Engine e Git;
 - garantia de execução do serviço Docker;
-- download da imagem da aplicação;
+- obtenção do código da aplicação `getting-started-app`;
+- criação do Dockerfile da aplicação;
+- construção da imagem Docker;
 - criação e execução do container;
 - publicação da aplicação na porta 3000;
 - validação do container;
@@ -54,48 +56,52 @@ A solução foi dividida em duas etapas principais:
                                   |
                                   v
                  +--------------------------------+
-                 |              VPC                 |
-                 |                                  |
-                 |          10.0.0.0/16             |
-                 |                                  |
-                 |   +--------------------------+   |
-                 |   |     Subnet Pública       |   |
-                 |   |       us-east-1a         |   |
-                 |   |                          |   |
-                 |   |   +------------------+   |   |
-                 |   |   | Security Group   |   |   |
-                 |   |   |                  |   |   |
-                 |   |   | SSH       :22    |   |   |
-                 |   |   | Aplicação :3000  |   |   |
-                 |   |   +--------+---------+   |   |
-                 |   |            |             |   |
-                 |   |            v             |   |
-                 |   |   +------------------+  |   |
-                 |   |   | EC2 - t3.micro   |  |   |
-                 |   |   |                  |  |   |
-                 |   |   | Docker           |  |   |
-                 |   |   | getting-started  |  |   |
-                 |   |   | :80 -> :3000     |  |   |
-                 |   |   +------------------+  |   |
-                 |   +--------------------------+   |
+                 |              VPC                |
+                 |                                 |
+                 |          10.0.0.0/16            |
+                 |                                 |
+                 |   +--------------------------+  |
+                 |   |     Subnet Pública       |  |
+                 |   |       us-east-1a         |  |
+                 |   |                          |  |
+                 |   |   +------------------+   |  |
+                 |   |   | Security Group   |   |  |
+                 |   |   |                  |   |  |
+                 |   |   | SSH       :22    |   |  |
+                 |   |   | Aplicação :3000  |   |  |
+                 |   |   +--------+---------+   |  |
+                 |   |            |              |  |
+                 |   |            v              |  |
+                 |   |   +------------------+   |  |
+                 |   |   | EC2 - t3.micro   |   |  |
+                 |   |   |                  |   |  |
+                 |   |   | Docker Engine    |   |  |
+                 |   |   |                  |   |  |
+                 |   |   | getting-started  |   |  |
+                 |   |   | app :3000        |   |  |
+                 |   |   +------------------+   |  |
+                 |   +--------------------------+  |
                  +--------------------------------+
 
                          TERRAFORM
                              |
                              v
-                     Provisionamento AWS
+                    Provisionamento AWS
                              |
                              v
                           ANSIBLE
                              |
                              v
-                  Configuração da EC2
+                      Configuração EC2
                              |
                              v
-                         DOCKER
+                       DOCKER ENGINE
                              |
                              v
-                   getting-started-app
+                    getting-started-app
+                             |
+                             v
+                           :3000
 ```
 
 ### Fluxo de execução
@@ -733,15 +739,19 @@ ansible/playbook.yml
 As principais tarefas são:
 
 1. Gathering Facts;
-2. instalação do Docker Engine;
+2. instalação do Docker Engine e Git;
 3. garantia de execução do Docker;
-4. download da imagem da aplicação;
-5. execução do container.
+4. criação do diretório da aplicação;
+5. obtenção do código da getting-started-app a partir do repositório oficial;
+6. criação do Dockerfile da aplicação;
+7. construção da imagem getting-started:latest;
+8. execução do container getting-started-app;
+9. publicação da aplicação na porta 3000.
 
 Executar:
 
 ```bash
-ansible-playbook playbook.yml
+ansible-playbook playbook.yml --ask-vault-pass
 ```
 
 ---
@@ -772,54 +782,76 @@ Isso demonstra que o estado desejado já foi alcançado e que o Ansible não pre
 
 O playbook instala o Docker Engine e garante que o serviço esteja em execução.
 
-Posteriormente, realiza o download da imagem:
+Também instala o Git, utilizado para obter o código-fonte da aplicação oficial `getting-started-app`.
+
+O código da aplicação é obtido por meio do repositório:
 
 ```text
-docker/getting-started:latest
+https://github.com/docker/getting-started-app
 ```
 
-E cria o container:
+OO Ansible cria o Dockerfile no diretório da aplicação e realiza o build da imagem:
+
+```text
+getting-started:latest
+```
+
+Após a construção da imagem, o container é executado com o nome:
 
 ```text
 getting-started-app
 ```
 
+A aplicação é publicada na porta:
+
+```text
+3000:3000
+```
+
+Dessa forma, o acesso externo utiliza a porta `3000` da instância EC2 e a aplicação também atende internamente na porta `3000`.
+
 ---
 
-# Mapeamento de portas
+## Mapeamento de portas
 
-Durante a validação inicial, foi utilizado o mapeamento:
+A aplicação `getting-started-app` atende internamente na porta `3000`.
+
+O container é publicado pelo Ansible utilizando o seguinte mapeamento:
 
 ```yaml
 published_ports:
   - "3000:3000"
 ```
 
-A aplicação, entretanto, estava atendendo internamente na porta 80.
+Dessa forma, a porta `3000` da instância EC2 é direcionada para a porta `3000` do container.
 
-Após os testes internos, o mapeamento foi ajustado para:
-
-```yaml
-published_ports:
-  - "3000:80"
-```
-
-O resultado final é:
+O fluxo de acesso à aplicação é:
 
 ```text
+Internet
+   |
+   v
+IP público da EC2
+   |
+   v
+Security Group - TCP 3000
+   |
+   v
 EC2 :3000
-     |
-     v
-Docker Container :80
-     |
-     v
-Nginx
-     |
-     v
+   |
+   v
+Docker Container :3000
+   |
+   v
 getting-started-app
+   |
+   v
+Node.js / Express
 ```
 
-Dessa forma, a aplicação permanece disponível externamente na porta 3000, conforme definido no projeto.
+O Security Group da instância EC2 permite o tráfego TCP na porta `3000`, possibilitando o acesso público à aplicação.
+
+Não é utilizado Nginx ou outro proxy reverso nessa implementação.
 
 ---
 
@@ -875,19 +907,23 @@ Esse teste comprova que a aplicação está respondendo dentro da própria EC2.
 
 # Validação externa da aplicação
 
-Após confirmar o funcionamento interno, a aplicação foi validada externamente:
+Após a implantação da infraestrutura e da configuração realizada pelo Ansible, foi realizada uma validação externa da aplicação utilizando o endereço público da instância EC2.
+
+O endereço IP público pode ser obtido diretamente pelos outputs do Terraform:
 
 ```bash
-curl -I --connect-timeout 5 --max-time 10 http://$(terraform output -raw public_ip):3000
+terraform output -raw public_ip
 ```
 
-O resultado esperado é:
+O acesso externo à aplicação foi validado utilizando:
 
-```text
-HTTP/1.1 200 OK
+```bash
+curl -I --connect-timeout 5 --max-time 10 http://IP_PUBLICO:3000
 ```
 
-Esse teste comprova o funcionamento do caminho:
+Como resultado, foi obtida uma resposta HTTP `200 OK`, confirmando que a aplicação está acessível externamente pela porta `3000`.
+
+O fluxo de acesso validado foi:
 
 ```text
 Internet
@@ -899,70 +935,72 @@ IP público da EC2
 Security Group - TCP 3000
    |
    v
-EC2
+EC2 :3000
    |
    v
-Docker
+Docker Container :3000
    |
    v
-Container :80
+getting-started-app
    |
    v
-Aplicação
+Node.js / Express
 ```
 
-Também foi realizada validação visual pelo navegador:
+Também foi realizada uma validação visual por meio de navegador, utilizando:
 
 ```text
 http://IP_PUBLICO:3000
 ```
 
+A página apresentada corresponde à aplicação `getting-started-app`, uma lista de tarefas (To-Do List) disponibilizada no exemplo oficial da Docker.
+
+As evidências dessa validação estão registradas nos arquivos:
+
+- `ansible_17_application_curl.png` — resposta HTTP `200 OK` obtida por meio do `curl`;
+- `ansible_18_application_browser.png` — aplicação `getting-started-app` acessível pelo navegador.
+
 ---
 
 # Ansible Vault
 
-Para demonstrar o armazenamento seguro de uma variável sensível, foi utilizado o Ansible Vault.
+Para demonstrar o gerenciamento seguro de informações sensíveis, foi utilizado o Ansible Vault.
 
-Criar o diretório:
+O arquivo criptografado está localizado em:
 
-```bash
-mkdir -p group_vars/all
+```text
+ansible/group_vars/all/vault.yml
 ```
 
-Criar o arquivo criptografado:
+O arquivo pode ser criado utilizando:
 
 ```bash
 ansible-vault create group_vars/all/vault.yml
 ```
 
-Foi utilizada uma variável de exemplo:
+Foi utilizada uma variável de exemplo para demonstrar o armazenamento seguro de informações sensíveis:
 
 ```yaml
 vault_app_secret: "segredo-simulado-projeto-final-iac"
 ```
 
-O arquivo é armazenado de forma criptografada.
+Após a criação, o conteúdo do arquivo permanece criptografado e pode ser versionado sem expor diretamente o valor armazenado.
 
-Para verificar:
-
-```bash
-cat group_vars/all/vault.yml
-```
-
-O conteúdo deve começar com algo semelhante a:
+A criptografia pode ser identificada pelo cabeçalho:
 
 ```text
 $ANSIBLE_VAULT;1.1;AES256
 ```
 
-A variável protegida é utilizada pelo playbook:
+Para executar o playbook que possui acesso às variáveis protegidas, é utilizada a opção:
 
-```yaml
-env:
-  APP_SECRET: "{{ vault_app_secret }}"
+```bash
+ansible-playbook playbook.yml --ask-vault-pass
 ```
 
-Dessa forma, o valor sensível não fica exposto diretamente no playbook.
+A senha utilizada para descriptografar o arquivo não é armazenada no repositório.
+
+O Ansible Vault faz parte da demonstração de boas práticas de gerenciamento de informações sensíveis no projeto. A aplicação `getting-started-app` não depende da variável `vault_app_secret` para seu funcionamento.
 
 ---
 
@@ -1193,37 +1231,42 @@ cd ~/projeto-final-iac/ansible
 
 ---
 
-## 7. Mapeamento inicial incorreto das portas Docker
+## 7. Utilização inicial da aplicação Docker incorreta
 
-Inicialmente foi utilizado:
-
-```yaml
-published_ports:
-  - "3000:3000"
-```
-
-Os testes internos demonstraram que a aplicação não respondia corretamente.
-
-Após a investigação, verificou-se que o serviço web do container atendia internamente na porta 80.
-
-O mapeamento foi então corrigido para:
-
-```yaml
-published_ports:
-  - "3000:80"
-```
-
-Após a alteração, o teste:
-
-```bash
-ansible all -m ansible.builtin.uri -a "url=http://127.0.0.1:3000 status_code=200 timeout=5"
-```
-
-retornou:
+Na primeira implementação do projeto, foi utilizada a imagem:
 
 ```text
-status: 200
+docker/getting-started:latest
 ```
+
+Durante a revisão dos requisitos da atividade, foi identificado que o cenário solicitado especificava explicitamente a aplicação `getting-started-app`, disponibilizada pela Docker no repositório oficial:
+
+```text
+https://github.com/docker/getting-started-app
+```
+
+A implementação foi então corrigida para utilizar o código da aplicação oficial.
+
+O Ansible passou a realizar automaticamente as seguintes etapas:
+
+1. instalar o Docker Engine e o Git;
+2. criar o diretório da aplicação;
+3. obter o código da `getting-started-app`;
+4. criar o Dockerfile;
+5. construir a imagem `getting-started:latest`;
+6. executar o container `getting-started-app`;
+7. publicar a aplicação na porta `3000`.
+
+A nova implementação foi validada por meio de:
+
+- execução bem-sucedida do playbook;
+- segunda execução com `changed=0`, comprovando a idempotência;
+- validação do container em execução;
+- confirmação do mapeamento `3000:3000`;
+- resposta HTTP `200 OK`;
+- acesso da aplicação por meio do navegador.
+
+Essa correção garantiu o alinhamento da implementação com o cenário solicitado na atividade.
 
 ---
 
@@ -1279,6 +1322,12 @@ public_ip = "3.88.214.212"
 
 O acesso externo passou a funcionar normalmente.
 
+> **Observação:** os endereços IP apresentados nesta seção correspondem às execuções anteriores do projeto, utilizadas durante a identificação e resolução do problema de acesso externo. Como o endereço IP público da instância EC2 pode ser alterado quando a infraestrutura é recriada, o endereço atual deve ser obtido diretamente pelos outputs do Terraform:
+
+```bash
+terraform output -raw public_ip
+```
+
 ---
 
 # Sincronização do Terraform State
@@ -1318,38 +1367,38 @@ public_ip  = "3.88.214.212"
 
 ---
 
-# Evidências
+## Evidências da implementação Ansible
 
-As evidências da implementação foram organizadas na pasta:
-
-```text
-images/
-```
-
-Principais evidências:
+As principais evidências da configuração e implantação realizadas pelo Ansible são:
 
 ```text
 ansible_01_ping_success.png
-ansible_02_playbook_first_run.png
-ansible_03_playbook_idempotent.png
-ansible_04_docker_container.png
-ansible_06_application_curl.png
-ansible_07_application_browser.png
 ansible_08_vault_encrypted.png
-ansible_09_vault_first_run.png
-ansible_10_vault_idempotent.png
-ansible_11_application_curl_final.png
-ansible_12_application_browser_final.png
+ansible_13_syntax_check.png
+ansible_14_playbook_first_run.png
+ansible_15_playbook_idempotent.png
+ansible_16_docker_container.png
+ansible_17_application_curl.png
+ansible_18_application_browser.png
 ```
 
-Também foram registradas evidências relacionadas ao Terraform, incluindo:
+As evidências `ansible_13` a `ansible_18` correspondem à implementação final da aplicação `getting-started-app`.
 
-- outputs;
-- provisionamento da EC2;
-- Security Group;
-- Workspaces;
-- atualização do State;
-- execução e destruição dos recursos.
+As evidências demonstram:
+
+- conectividade entre o Ansible e a instância EC2;
+- utilização do Ansible Vault para armazenamento seguro de variáveis;
+- validação da sintaxe do playbook;
+- primeira execução do playbook;
+- idempotência, com `changed=0` na segunda execução;
+- execução do container `getting-started-app`;
+- publicação da aplicação na porta `3000`;
+- resposta HTTP `200 OK`;
+- acesso público à aplicação por meio do navegador.
+
+A evidência `ansible_08_vault_encrypted.png` demonstra que o arquivo de variáveis sensíveis permanece criptografado.
+
+As evidências `ansible_17_application_curl.png` e `ansible_18_application_browser.png` comprovam o funcionamento da aplicação após a configuração automatizada.
 
 ---
 
@@ -1387,10 +1436,10 @@ Esses valores são utilizados para acesso e validação da aplicação.
 - Amazon Linux 2023
 - Docker Engine
 - Docker
-- Nginx
-- `getting-started-app`
+- getting-started-app
 - AWS CLI
 - Git
+- GitHub
 
 ---
 

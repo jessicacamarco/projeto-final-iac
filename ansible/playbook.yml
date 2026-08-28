@@ -5,9 +5,11 @@
 
   tasks:
 
-    - name: Instalar Docker Engine
+    - name: Instalar Docker Engine e Git
       ansible.builtin.dnf:
-        name: docker
+        name:
+          - docker
+          - git
         state: present
 
     - name: Garantir que o Docker esteja em execução
@@ -16,20 +18,46 @@
         state: started
         enabled: true
 
-    - name: Baixar imagem da aplicação
+    - name: Criar diretório da aplicação
+      ansible.builtin.file:
+        path: /opt/getting-started-app
+        state: directory
+        mode: '0755'
+
+    - name: Baixar aplicação getting-started-app
+      ansible.builtin.git:
+        repo: https://github.com/docker/getting-started-app.git
+        dest: /opt/getting-started-app
+        version: main
+        force: true
+
+    - name: Criar Dockerfile da aplicação
+      ansible.builtin.copy:
+        dest: /opt/getting-started-app/Dockerfile
+        mode: '0644'
+        content: |
+          # syntax=docker/dockerfile:1
+          FROM node:24-alpine
+          WORKDIR /app
+          COPY . .
+          RUN npm install --omit=dev
+          CMD ["node", "src/index.js"]
+          EXPOSE 3000
+
+    - name: Construir imagem da aplicação
       community.docker.docker_image:
-        name: docker/getting-started
+        name: getting-started
         tag: latest
-        source: pull
+        source: build
+        build:
+          path: /opt/getting-started-app
         state: present
 
     - name: Executar container da aplicação
       community.docker.docker_container:
         name: getting-started-app
-        image: docker/getting-started:latest
+        image: getting-started:latest
         state: started
         restart_policy: unless-stopped
         published_ports:
-          - "3000:80"
-        env:
-          APP_SECRET: "{{ vault_app_secret }}"
+          - "3000:3000"
